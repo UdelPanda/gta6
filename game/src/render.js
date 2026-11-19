@@ -158,15 +158,8 @@ export function createRenderer(canvas, city) {
         ctx.ellipse(b.x + b.w / 2, b.y + b.h / 2, 26, 16, 0, 0, Math.PI * 2);
         ctx.fill();
       }
-      if (b.landmark) {
-        ctx.fillStyle = '#20242cee';
-        ctx.fillRect(b.x, b.y + b.h / 2 - 13, b.w, 26);
-        ctx.fillStyle = PALETTE.accent;
-        ctx.font = `bold 15px ${FONT}`;
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(landmarkName(b.landmark), b.x + b.w / 2, b.y + b.h / 2 + 1);
-      }
+      // Landmark name bars are painted after the HUD (drawLandmarkLabels),
+      // never here: drawn in world space they slide under the HUD panels.
     }
     // Trees.
     for (const tree of city.trees) {
@@ -286,15 +279,15 @@ export function createRenderer(canvas, city) {
     // On foot: a yellow-jacketed figure with a facing tick and a gun line.
     ctx.fillStyle = '#00000030';
     ctx.beginPath();
-    ctx.ellipse(p.x + 2, p.y + 3, 12, 8, 0, 0, Math.PI * 2);
+    ctx.ellipse(p.x + 2, p.y + 3, 14, 9, 0, 0, Math.PI * 2);
     ctx.fill();
     ctx.fillStyle = PALETTE.player;
     ctx.beginPath();
-    ctx.arc(p.x, p.y, 12, 0, Math.PI * 2);
+    ctx.arc(p.x, p.y, 14, 0, Math.PI * 2);
     ctx.fill();
     ctx.fillStyle = '#7a5b12';
     ctx.beginPath();
-    ctx.arc(p.x, p.y, 7, 0, Math.PI * 2);
+    ctx.arc(p.x, p.y, 8, 0, Math.PI * 2);
     ctx.fill();
     ctx.strokeStyle = '#20242c';
     ctx.lineWidth = 3;
@@ -507,6 +500,28 @@ export function createRenderer(canvas, city) {
     ctx.textBaseline = 'top';
   }
 
+  // Landmark name bars, painted in screen space after the HUD so no panel
+  // ever clips them: the same dark strip across the building's middle with
+  // the name in accent capitals that the world pass used to paint.
+  function drawLandmarkLabels(view) {
+    const { cam } = view;
+    for (const b of city.buildings) {
+      if (!b.landmark) continue;
+      const sx = (b.x - cam.x) * cam.zoom + cam.viewW / 2;
+      const sy = (b.y + b.h / 2 - cam.y) * cam.zoom + cam.viewH / 2;
+      const w = b.w * cam.zoom;
+      const h = 26 * cam.zoom;
+      if (sx + w < 0 || sx > cam.viewW || sy + h / 2 < 0 || sy - h / 2 > cam.viewH) continue;
+      ctx.fillStyle = '#20242cee';
+      ctx.fillRect(sx, sy - h / 2, w, h);
+      ctx.fillStyle = PALETTE.accent;
+      ctx.font = `bold ${Math.max(9, Math.round(15 * cam.zoom))}px ${FONT}`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(landmarkName(b.landmark), sx + w / 2, sy + 1);
+    }
+  }
+
   function drawHud(view) {
     const { cam } = view;
     const p = view.player.state;
@@ -543,6 +558,26 @@ export function createRenderer(canvas, city) {
       ctx.fillText(`${p.mag} / ${p.ammo}`, 248, 84);
       ctx.textAlign = 'left';
     }
+    // "Losing them…" progress, under the status panel, while the heat fades.
+    if (view.losingCue) {
+      const cue = view.losingCue;
+      ctx.fillStyle = PALETTE.panel;
+      roundRect(ctx, 12, 128, 250, 40, 10);
+      ctx.fill();
+      ctx.strokeStyle = PALETTE.panelBorder;
+      ctx.lineWidth = 1;
+      roundRect(ctx, 12, 128, 250, 40, 10);
+      ctx.stroke();
+      ctx.fillStyle = PALETTE.accent;
+      ctx.font = `bold 12px ${FONT}`;
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'top';
+      ctx.fillText(cue.text, 26, 136);
+      ctx.fillStyle = '#ffffff22';
+      ctx.fillRect(26, 154, 222, 6);
+      ctx.fillStyle = PALETTE.cash;
+      ctx.fillRect(26, 154, 222 * clamp(cue.progress, 0, 1), 6);
+    }
     drawMinimap(view);
     // Mission progress + current objective, bottom centre.
     const mission = view.missions.current();
@@ -565,10 +600,16 @@ export function createRenderer(canvas, city) {
     ctx.font = `13px ${FONT}`;
     const objective = stepText + (view.objectiveDistance != null ? `  —  ${Math.round(view.objectiveDistance)}m` : '');
     ctx.fillText(objective, cam.viewW / 2, boxY + 33);
-    // Contextual hint, above the mission bar.
+    // Contextual hint, above the mission bar, on a dark pill so it reads
+    // over pale ground as well as asphalt.
     ctx.textAlign = 'left';
-    ctx.fillStyle = PALETTE.muted;
+    ctx.textBaseline = 'middle';
     ctx.font = `12px ${FONT}`;
+    const hintW = ctx.measureText(view.hint).width;
+    ctx.fillStyle = '#10131acc';
+    roundRect(ctx, 8, cam.viewH - 78 - 11, hintW + 12, 22, 8);
+    ctx.fill();
+    ctx.fillStyle = PALETTE.muted;
     ctx.fillText(view.hint, 14, cam.viewH - 78);
     // Speed, bottom right, when driving.
     if (p.inCar && p.car) {
@@ -595,8 +636,8 @@ export function createRenderer(canvas, city) {
       ctx.fillStyle = `rgba(255, 40, 30, ${p.hurt * 0.28})`;
       ctx.fillRect(0, 0, cam.viewW, cam.viewH);
     }
-    // Toasts.
-    let ty = 132;
+    // Toasts, below the status panel — or below the losing-them cue.
+    let ty = view.losingCue ? 176 : 132;
     for (const toast of view.toasts) {
       ctx.globalAlpha = clamp(toast.life, 0, 1);
       ctx.fillStyle = PALETTE.panel;
@@ -779,6 +820,7 @@ export function createRenderer(canvas, city) {
       view.objectiveDistance = drawWaypoint(view);
       ctx.restore();
       drawHud(view);
+      drawLandmarkLabels(view);
       if (screen === 'paused') {
         drawPanel(view, 'PAUSED', ['Your story waits where you left it.', `Cash $${Math.floor(view.player.state.cash).toLocaleString('en-US')} · ${view.missions.progressText()}`], PALETTE.text);
       } else if (screen === 'busted') {

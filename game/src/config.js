@@ -16,7 +16,7 @@ export const WORLD = {
 
 // The player's on-foot body and the wanted/health economy.
 export const PLAYER = {
-  radius: 13,
+  radius: 14,
   walkSpeed: 175,
   sprintSpeed: 265,
   health: 100,
@@ -58,13 +58,16 @@ export const TRAFFIC = {
 };
 
 // Police: how many cars per wanted star, how fast they are, how the heat fades.
+// Police top speed sits below the player's (520), and the heat fades faster
+// than it used to (8 s out of sight, then 5 s a star from 5 stars: 33 s
+// unseen in all), so losing a tail is a drive, not a lottery.
 export const POLICE = {
   maxCars: 6,
-  speed: 560,
+  speed: 500,
   ramDamage: 10,
   sightRange: 620,
-  loseSightSeconds: 14,
-  decaySeconds: 11,
+  loseSightSeconds: 8,
+  decaySeconds: 5,
   bustSeconds: 1.2,
 };
 

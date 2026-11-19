@@ -77,7 +77,11 @@ export function createCity(random) {
         buildings.push(b);
         landmarks[key] = {
           x: b.x + b.w / 2,
-          y: b.y + b.h + 44,
+          // The sign spot sits in the forecourt, clear of the building's
+          // south wall. The Hideout sits 36 px further south than the rest:
+          // a car driving up to it used to wedge against its south wall
+          // just outside the delivery radius.
+          y: b.y + b.h + (key === 'hideout' ? 80 : 44),
           name: specials[key].name,
           bx, by,
         };

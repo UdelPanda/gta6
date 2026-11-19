@@ -217,7 +217,11 @@ export function stageShot(name, game, stepGame) {
     for (let i = 0; i < steps; i += 1) {
       const cop = police.units[0];
       const aim = cop ? Math.atan2(cop.y - player.state.y, cop.x - player.state.x) : -Math.PI / 2;
-      input.set(0, 0, i % 30 < 12, aim);
+      // One shot every two seconds: three shots in the scene, two cops down,
+      // and the heat lands at 4 stars (160 + 3×60 + 2×200 = 740) — the frame
+      // the screenshot shows. Firing every window (10 shots) kills three
+      // cops and pushes the heat to 5 stars.
+      input.set(0, 0, i % 120 < 12, aim);
       stepGame(input);
     }
     return { screen: 'play' };

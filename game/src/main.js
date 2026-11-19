@@ -232,6 +232,7 @@ function buildView(game) {
     stepText: step ? step.text : '',
     objectiveDistance: null,
     hint,
+    losingCue: game.police.losingCue(),
   };
 }
 
